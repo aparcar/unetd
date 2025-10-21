@@ -1,0 +1,43 @@
+name: OpenWrt CI master branch testing
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CI_ENABLE_UNIT_TESTING: 0
+  CI_TARGET_BUILD_DEPENDS: libubox libnl-tiny
+  CI_CMAKE_EXTRA_BUILD_ARGS: -DUBUS_SUPPORT=off
+
+jobs:
+  native_testing:
+    name: Various native checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install libbpf
+        run: |
+          git clone https://github.com/libbpf/libbpf.git
+          sudo make -j$(nproc) -C libbpf/src all install
+
+      - uses: ynezz/gh-actions-openwrt-ci-native@v0.0.2
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: native-build-artifacts
+          if-no-files-found: ignore
+          path: |
+            build/scan
+            tests/cram/**/*.t.err
